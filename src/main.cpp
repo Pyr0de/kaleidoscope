@@ -1,11 +1,12 @@
 #include <cstdio>
 #include "parser.h"
+#include "ast.h"
 
-int main() {
+int mainLoop() {
     Parser parser;
 
     while (true) {
-        fprintf(stderr, "ready > ", parser.currToken);
+        fprintf(stderr, "ready > ");
         parser.getNextToken();
         switch (parser.currToken) {
             case tok_eof:
@@ -24,4 +25,13 @@ int main() {
                 break;
         }
     }
+}
+
+
+int main() {
+    InitializeCodeGen();
+
+    mainLoop();
+
+    TheModule->print(errs(), nullptr);
 }

@@ -1,3 +1,6 @@
+#pragma once
+
+#include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
@@ -9,14 +12,18 @@
 
 using namespace llvm;
 
-static std::unique_ptr<LLVMContext> TheContext;
-static std::unique_ptr<IRBuilder<>> Builder;
-static std::unique_ptr<Module> TheModule;
-static std::map<std::string, Value*> NamedValues;
+extern std::unique_ptr<llvm::LLVMContext> TheContext;
+extern std::unique_ptr<llvm::Module> TheModule;
+extern std::unique_ptr<llvm::IRBuilder<>> Builder;
+
+extern std::map<std::string, llvm::Value*> NamedValues;
+
+void InitializeCodeGen();
 
 class ExprAST {
     public:
         virtual ~ExprAST() = default;
+        virtual Value* codegen() = 0;
 };
 
 class NumberExprAST : public ExprAST {
@@ -24,6 +31,7 @@ class NumberExprAST : public ExprAST {
 
     public:
     NumberExprAST(double val) : val(val) {}
+    Value* codegen() override;
 };
 
 class VariableExprAST : public ExprAST {
@@ -31,6 +39,7 @@ class VariableExprAST : public ExprAST {
 
     public:
     VariableExprAST(const std::string &name) : name(name) {}
+    Value* codegen() override;
 };
 
 class BinaryExprAST : public ExprAST {
@@ -41,6 +50,7 @@ class BinaryExprAST : public ExprAST {
     BinaryExprAST(char op, std::unique_ptr<ExprAST> lhs,
             std::unique_ptr<ExprAST> rhs)
         : op(op), lhs(std::move(lhs)), rhs(std::move(rhs)) {}
+    Value* codegen() override;
 };
 
 class CallExprAST : public ExprAST {
@@ -51,6 +61,7 @@ class CallExprAST : public ExprAST {
     CallExprAST(const std::string &callee,
             std::vector<std::unique_ptr<ExprAST>> args)
         : callee(callee), args(std::move(args)) {}
+    Value* codegen() override;
 };
 
 class PrototypeAST {
@@ -62,6 +73,7 @@ class PrototypeAST {
         : name(name), args(std::move(args)) {}
 
     const std::string &getName() const { return name; }
+    Function* codegen();
 };
 
 class FunctionAST {
@@ -72,5 +84,6 @@ class FunctionAST {
     FunctionAST(std::unique_ptr<PrototypeAST> proto,
             std::unique_ptr<ExprAST> body)
         : proto(std::move(proto)), body(std::move(body)) {}
+    Function* codegen();
 };
 
