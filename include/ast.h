@@ -1,6 +1,18 @@
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/Value.h>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
+
+using namespace llvm;
+
+static std::unique_ptr<LLVMContext> TheContext;
+static std::unique_ptr<IRBuilder<>> Builder;
+static std::unique_ptr<Module> TheModule;
+static std::map<std::string, Value*> NamedValues;
 
 class ExprAST {
     public:
