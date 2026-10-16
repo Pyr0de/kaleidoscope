@@ -4,11 +4,9 @@
 int main() {
     Parser parser;
 
-    fprintf(stderr, "ready> ");
-    parser.getNextToken();
-
     while (true) {
-        fprintf(stderr, "ready> ");
+        fprintf(stderr, "ready > ", parser.currToken);
+        parser.getNextToken();
         switch (parser.currToken) {
             case tok_eof:
                 return 0;
