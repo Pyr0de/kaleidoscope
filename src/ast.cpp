@@ -13,7 +13,9 @@
 #include <llvm/Transforms/Scalar/Reassociate.h>
 #include <llvm/Transforms/Scalar/SimplifyCFG.h>
 #include <memory>
+#include <string>
 #include "ast.h"
+#include "KaleidoscopeJIT.h"
 
 using namespace llvm;
 
@@ -22,6 +24,7 @@ std::unique_ptr<Module> TheModule;
 std::unique_ptr<IRBuilder<>> Builder;
 
 std::map<std::string, llvm::Value*> NamedValues;
+std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
 
 static std::unique_ptr<FunctionPassManager> FPM;
 static std::unique_ptr<LoopAnalysisManager> LAM;
@@ -31,9 +34,12 @@ static std::unique_ptr<ModuleAnalysisManager> MAM;
 static std::unique_ptr<PassInstrumentationCallbacks> PIC;
 static std::unique_ptr<StandardInstrumentations> SI;
 
-void InitializeCodeGen() {
+std::unique_ptr<orc::KaleidoscopeJIT> JIT;
+
+void InitializeModuleAndManagers() {
     TheContext = std::make_unique<LLVMContext>();
     TheModule = std::make_unique<Module>("my cool jit", *TheContext);
+    TheModule->setDataLayout(JIT->getDataLayout());
 
     Builder = std::make_unique<IRBuilder<>>(*TheContext);
 
@@ -101,9 +107,20 @@ Value* BinaryExprAST::codegen() {
     }
 }
 
+Function* getFunction(std::string name) {
+    if (auto* func = TheModule->getFunction(name))
+        return func;
+
+    auto fi = FunctionProtos.find(name);
+    if (fi != FunctionProtos.end())
+        return fi->second->codegen();
+
+    return nullptr;
+}
+
 Value* CallExprAST::codegen() {
     // Look up the name in the global module table.
-    Function *calleeF = TheModule->getFunction(callee);
+    Function *calleeF = getFunction(callee);
     if (!calleeF)
         return LogErrorV("Unknown function referenced");
 
@@ -136,17 +153,12 @@ Function *PrototypeAST::codegen() {
 }
 
 Function *FunctionAST::codegen() {
-    // First, check for an existing function from a previous 'extern' declaration.
-    Function *function = TheModule->getFunction(proto->getName());
+    auto &P = *proto;
+    FunctionProtos[proto->getName()] = std::move(proto);
 
-    if (!function)
-        function = proto->codegen();
-
+    Function *function = getFunction(P.getName());
     if (!function)
         return nullptr;
-
-    if (!function->empty())
-        return (Function*)LogErrorV("Function cannot be redefined.");
 
     BasicBlock *BB = BasicBlock::Create(*TheContext, "entry", function);
     Builder->SetInsertPoint(BB);

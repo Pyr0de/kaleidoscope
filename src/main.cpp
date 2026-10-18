@@ -1,4 +1,6 @@
 #include <cstdio>
+#include <llvm/Support/TargetSelect.h>
+#include "KaleidoscopeJIT.h"
 #include "parser.h"
 #include "ast.h"
 
@@ -29,7 +31,13 @@ int mainLoop() {
 
 
 int main() {
-    InitializeCodeGen();
+    InitializeNativeTarget();
+    InitializeNativeTargetAsmPrinter();
+    InitializeNativeTargetAsmParser();
+
+    JIT = ExitOnErr(orc::KaleidoscopeJIT::Create());
+
+    InitializeModuleAndManagers();
 
     mainLoop();
 

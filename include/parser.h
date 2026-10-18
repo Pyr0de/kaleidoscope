@@ -1,6 +1,9 @@
 #include "lexer.h"
 #include "ast.h"
 #include <map>
+#include <llvm/Support/Error.h>
+
+static ExitOnError ExitOnErr;
 
 class Parser {
     Lexer lexer;

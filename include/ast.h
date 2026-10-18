@@ -1,5 +1,6 @@
 #pragma once
 
+#include "KaleidoscopeJIT.h"
 #include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
@@ -12,13 +13,18 @@
 
 using namespace llvm;
 
-extern std::unique_ptr<llvm::LLVMContext> TheContext;
-extern std::unique_ptr<llvm::Module> TheModule;
-extern std::unique_ptr<llvm::IRBuilder<>> Builder;
+class PrototypeAST;
+
+extern std::unique_ptr<LLVMContext> TheContext;
+extern std::unique_ptr<Module> TheModule;
+extern std::unique_ptr<IRBuilder<>> Builder;
 
 extern std::map<std::string, llvm::Value*> NamedValues;
+extern std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
 
-void InitializeCodeGen();
+extern std::unique_ptr<orc::KaleidoscopeJIT> JIT;
+
+void InitializeModuleAndManagers();
 
 class ExprAST {
     public:
