@@ -1,6 +1,18 @@
+#include <llvm/Passes/PassBuilder.h>
+#include <llvm/IR/PassInstrumentation.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Analysis/LoopAnalysisManager.h>
+#include <llvm/IR/PassManager.h>
+#include <llvm/Passes/StandardInstrumentations.h>
 #include <llvm/IR/Function.h>
 #include <llvm/ADT/APFloat.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/Analysis/CGSCCPassManager.h>
+#include <llvm/Transforms/InstCombine/InstCombine.h>
+#include <llvm/Transforms/Scalar/GVN.h>
+#include <llvm/Transforms/Scalar/Reassociate.h>
+#include <llvm/Transforms/Scalar/SimplifyCFG.h>
+#include <memory>
 #include "ast.h"
 
 using namespace llvm;
@@ -11,10 +23,43 @@ std::unique_ptr<IRBuilder<>> Builder;
 
 std::map<std::string, llvm::Value*> NamedValues;
 
+static std::unique_ptr<FunctionPassManager> FPM;
+static std::unique_ptr<LoopAnalysisManager> LAM;
+static std::unique_ptr<FunctionAnalysisManager> FAM;
+static std::unique_ptr<CGSCCAnalysisManager> CGAM;
+static std::unique_ptr<ModuleAnalysisManager> MAM;
+static std::unique_ptr<PassInstrumentationCallbacks> PIC;
+static std::unique_ptr<StandardInstrumentations> SI;
+
 void InitializeCodeGen() {
     TheContext = std::make_unique<LLVMContext>();
     TheModule = std::make_unique<Module>("my cool jit", *TheContext);
+
     Builder = std::make_unique<IRBuilder<>>(*TheContext);
+
+    FPM = std::make_unique<FunctionPassManager>();
+    LAM = std::make_unique<LoopAnalysisManager>();
+    FAM = std::make_unique<FunctionAnalysisManager>();
+    CGAM = std::make_unique<CGSCCAnalysisManager>();
+    MAM = std::make_unique<ModuleAnalysisManager>();
+    PIC = std::make_unique<PassInstrumentationCallbacks>();
+    SI = std::make_unique<StandardInstrumentations>(*TheContext, true);
+    SI->registerCallbacks(*PIC, MAM.get());
+
+    // Add transform passes.
+    // Do simple "peephole" optimizations and bit-twiddling optzns.
+    FPM->addPass(InstCombinePass());
+    // Reassociate expressions.
+    FPM->addPass(ReassociatePass());
+    // Eliminate Common SubExpressions.
+    FPM->addPass(GVNPass());
+    // Simplify the control flow graph (deleting unreachable blocks, etc)->
+    FPM->addPass(SimplifyCFGPass());
+
+    PassBuilder PB;
+    PB.registerModuleAnalyses(*MAM);
+    PB.registerFunctionAnalyses(*FAM);
+    PB.crossRegisterProxies(*LAM, *FAM, *CGAM, *MAM);
 }
 
 Value *LogErrorV(const char *Str) {
@@ -116,6 +161,8 @@ Function *FunctionAST::codegen() {
 
         // Validate the generated code, checking for consistency.
         verifyFunction(*function);
+
+        FPM->run(*function, *FAM);
 
         return function;
     }
