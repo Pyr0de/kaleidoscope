@@ -1,6 +1,7 @@
 #include "parser.h"
 #include "ast.h"
 #include "lexer.h"
+#include <cstdio>
 #include <llvm-22/llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <memory>
 
@@ -77,6 +78,8 @@ std::unique_ptr<ExprAST> Parser::ParsePrimary() {
             return ParseNumberExpr();
         case '(':
             return ParseParenExpr();
+        case tok_if:
+            return ParseIfExpr();
         default:
             return LogError("unknown token when expecting an expression");
     }
@@ -145,6 +148,36 @@ std::unique_ptr<ExprAST> Parser::ParseBinOpRHS(
         // Merge lhs/rhs.
         lhs = std::make_unique<BinaryExprAST>(binOp, std::move(lhs), std::move(rhs));
     }
+}
+
+/// ifexpr ::= 'if' expression 'then' expression 'else' expression
+std::unique_ptr<ExprAST> Parser::ParseIfExpr() {
+    getNextToken();  // eat the if.
+
+    // condition.
+    auto Cond = ParseExpression();
+    if (!Cond)
+        return nullptr;
+
+    if (currToken != tok_then)
+        return LogError("expected then");
+    getNextToken();  // eat the then
+
+    auto Then = ParseExpression();
+    if (!Then)
+        return nullptr;
+
+    if (currToken != tok_else)
+        return LogError("expected else");
+
+    getNextToken();
+
+    auto Else = ParseExpression();
+    if (!Else)
+        return nullptr;
+
+    return std::make_unique<IfExprAST>(std::move(Cond), std::move(Then),
+            std::move(Else));
 }
 
 /// prototype

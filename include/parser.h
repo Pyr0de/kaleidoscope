@@ -27,6 +27,8 @@ class Parser {
     std::unique_ptr<ExprAST> ParseExpression();
     std::unique_ptr<ExprAST> ParseBinOpRHS(int, std::unique_ptr<ExprAST>);
 
+    std::unique_ptr<ExprAST> ParseIfExpr();
+
     std::unique_ptr<PrototypeAST> ParsePrototype();
     std::unique_ptr<FunctionAST> ParseDefinition();
 
