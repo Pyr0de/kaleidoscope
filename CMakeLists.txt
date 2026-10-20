@@ -18,8 +18,21 @@ llvm_map_components_to_libnames(LLVM_LIBS
     core
     orcjit
     native
+    RuntimeDyld
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 target_include_directories(${PROJECT_NAME} PRIVATE include)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${LLVM_LIBS})
+
+file(GLOB_RECURSE LIB_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/lib/*.cpp"
+)
+
+target_sources(${PROJECT_NAME} PRIVATE ${LIB_SOURCES})
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_options(${PROJECT_NAME} PRIVATE
+        "-Wl,--export-dynamic"
+    )
+endif()
