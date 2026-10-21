@@ -5,6 +5,8 @@
 #include <llvm-22/llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <memory>
 
+std::map<char, int> binOpPrecedence;
+
 static std::unique_ptr<ExprAST> LogError(const char *Str) {
     fprintf(stderr, "Error: %s\n", Str);
     return nullptr;
@@ -233,10 +235,38 @@ std::unique_ptr<ExprAST> Parser::ParseForExpr() {
 /// prototype
 ///   ::= id '(' id* ')'
 std::unique_ptr<PrototypeAST> Parser::ParsePrototype() {
-    if (currToken != tok_ident)
-        return LogErrorP("Expected function name in prototype");
+    std::string fnName;
 
-    std::string fnName = lexer.identifier();
+    /// 0 = Ident, 1 = Binary
+    unsigned kind = 0;
+    unsigned precedence = 30;
+
+
+    switch (currToken) {
+        default:
+            return LogErrorP("Expected function name in prototype");
+        case tok_ident:
+            fnName = lexer.identifier();
+            kind = 0;
+            break;
+        case tok_binary:
+            getNextToken();
+            if (!isascii(currToken))
+                return LogErrorP("Expected binary operator");
+            fnName = "binary";
+            fnName += (char)currToken;
+            kind = 1;
+
+            getNextToken();
+
+            if (currToken == tok_number) {
+                int numVal = lexer.number();
+                if (numVal < 1 || numVal > 100)
+                    return LogErrorP("Invalid precedence: must be 1..100");
+                precedence = (unsigned)numVal;
+            }
+            break;
+    }
     getNextToken();
 
     if (currToken != '(')
@@ -251,7 +281,7 @@ std::unique_ptr<PrototypeAST> Parser::ParsePrototype() {
 
     getNextToken();
 
-    return std::make_unique<PrototypeAST>(fnName, std::move(argNames));
+    return std::make_unique<PrototypeAST>(fnName, std::move(argNames), kind != 0, precedence);
 }
 
 /// definition ::= 'def' prototype expression
@@ -315,6 +345,7 @@ void Parser::HandleExtern() {
 void Parser::HandleTopLevelExpression() {
     if (auto FnAST = ParseTopLevelExpr()) {
         if (auto *FnIR = FnAST->codegen()) {
+            // FnIR->print(errs());
             auto RT = JIT->getMainJITDylib().createResourceTracker();
 
             auto TSM = orc::ThreadSafeModule(std::move(TheModule), std::move(TheContext));

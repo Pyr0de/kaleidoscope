@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/IR/PassInstrumentation.h>
 #include <llvm/Target/TargetMachine.h>
@@ -16,6 +17,7 @@
 #include <string>
 #include "ast.h"
 #include "KaleidoscopeJIT.h"
+#include "parser.h"
 
 using namespace llvm;
 
@@ -103,8 +105,15 @@ Value* BinaryExprAST::codegen() {
             return Builder->CreateUIToFP(l, Type::getDoubleTy(*TheContext),
                     "booltmp");
         default:
-            return LogErrorV("invalid binary operator");
+            break;
     }
+
+    Function* func = getFunction(std::string("binary") + op);
+    if (!func)
+        return LogErrorV("invalid binary operator");
+
+    Value* ops[2] = {l, r};
+    return Builder->CreateCall(func, ops, "binops");
 }
 
 Function* getFunction(std::string name) {
@@ -159,6 +168,9 @@ Function *FunctionAST::codegen() {
     Function *function = getFunction(P.getName());
     if (!function)
         return nullptr;
+
+    if (P.isBinaryOp())
+        binOpPrecedence[P.getOperatorName()] = P.getBinaryPrecedence();
 
     BasicBlock *BB = BasicBlock::Create(*TheContext, "entry", function);
     Builder->SetInsertPoint(BB);

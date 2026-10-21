@@ -23,6 +23,8 @@ int Lexer::getToken() {
             return tok_for;
         if (IdentifierStr == "in")
             return tok_in;
+        if (IdentifierStr == "binary")
+            return tok_binary;
         return tok_ident;
     }
 

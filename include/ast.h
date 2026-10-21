@@ -26,6 +26,8 @@ extern std::unique_ptr<orc::KaleidoscopeJIT> JIT;
 
 void InitializeModuleAndManagers();
 
+Function* getFunction(std::string name);
+
 class ExprAST {
     public:
         virtual ~ExprAST() = default;
@@ -74,12 +76,34 @@ class PrototypeAST {
     std::string name;
     std::vector<std::string> args;
 
+    bool isOperator;
+    unsigned precedence;
+
     public:
-    PrototypeAST(const std::string &name, std::vector<std::string> args)
-        : name(name), args(std::move(args)) {}
+    PrototypeAST(
+            const std::string &name,
+            std::vector<std::string> args,
+            bool isOperator = 0,
+            unsigned precedence = 30
+            ) :
+        name(name),
+        args(std::move(args)),
+        isOperator(isOperator),
+        precedence(precedence)
+    {}
 
     const std::string &getName() const { return name; }
     Function* codegen();
+
+    bool isUnaryOp() const { return isOperator && args.size() == 1; }
+    bool isBinaryOp() const { return isOperator && args.size() == 2; }
+
+    char getOperatorName() const {
+        assert(isUnaryOp() || isBinaryOp());
+        return name[name.size() - 1];
+    }
+
+    unsigned getBinaryPrecedence() const { return precedence; }
 };
 
 class FunctionAST {

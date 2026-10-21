@@ -1,13 +1,15 @@
+#pragma once
+
 #include "lexer.h"
 #include "ast.h"
 #include <map>
 #include <llvm/Support/Error.h>
 
 static ExitOnError ExitOnErr;
+extern std::map<char, int> binOpPrecedence;
 
 class Parser {
     Lexer lexer;
-    std::map<char, int> binOpPrecedence;
 
     public:
     Parser();
