@@ -232,3 +232,61 @@ Value* IfExprAST::codegen() {
     PN->addIncoming(ElseV, ElseBB);
     return PN;
 }
+
+Value* ForExprAST::codegen() {
+    Value* startVal = Start->codegen();
+
+    if (!startVal)
+        return nullptr;
+
+    Function* function = Builder->GetInsertBlock()->getParent();
+    BasicBlock* preHeaderBB = Builder->GetInsertBlock();
+    BasicBlock* loopBB = BasicBlock::Create(*TheContext, "loop", function);
+
+    Builder->CreateBr(loopBB);
+
+    Builder->SetInsertPoint(loopBB);
+
+    auto ph = Builder->CreatePHI(Type::getDoubleTy(*TheContext), 2, VarName);
+    ph->addIncoming(startVal, preHeaderBB);
+    // ph->addIncoming(nextVal, loopBB);
+
+    Value *oldVal = NamedValues[VarName];
+    NamedValues[VarName] = ph;
+
+    if (!Body->codegen())
+        return nullptr;
+
+    Value* stepVal = nullptr;
+    if (Step) {
+        stepVal = Step->codegen();
+        if (!stepVal)
+            return nullptr;
+    } else {
+        stepVal = ConstantFP::get(*TheContext, APFloat(1.0));
+    }
+
+    Value* nextVar = Builder->CreateFAdd(ph, stepVal, "nextVar");
+
+    Value* endVal = End->codegen();
+    if (!endVal)
+        return nullptr;
+    
+    endVal = Builder->CreateFCmpONE(endVal, ConstantFP::get(*TheContext, APFloat(0.0)), "loopcond");
+
+    BasicBlock *loopEndBB = Builder->GetInsertBlock();
+    BasicBlock *afterBB = BasicBlock::Create(*TheContext, "afterloop", function);
+
+    Builder->CreateCondBr(endVal, loopBB, afterBB);
+
+    ph->addIncoming(nextVar, loopEndBB);
+
+    Builder->SetInsertPoint(afterBB);
+
+    if (oldVal)
+        NamedValues[VarName] = oldVal;
+    else
+        NamedValues.erase(VarName);
+
+    return Constant::getNullValue(Type::getDoubleTy(*TheContext));
+}
