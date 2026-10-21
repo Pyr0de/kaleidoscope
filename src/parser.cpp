@@ -253,10 +253,9 @@ std::unique_ptr<ExprAST> Parser::ParseForExpr() {
 std::unique_ptr<PrototypeAST> Parser::ParsePrototype() {
     std::string fnName;
 
-    /// 0 = Ident, 1 = Binary
+    /// 0 = Ident, 1 = Binary, 2 = Unary
     unsigned kind = 0;
     unsigned precedence = 30;
-
 
     switch (currToken) {
         default:
@@ -264,6 +263,7 @@ std::unique_ptr<PrototypeAST> Parser::ParsePrototype() {
         case tok_ident:
             fnName = lexer.identifier();
             kind = 0;
+            getNextToken();
             break;
         case tok_binary:
             getNextToken();
@@ -281,9 +281,19 @@ std::unique_ptr<PrototypeAST> Parser::ParsePrototype() {
                     return LogErrorP("Invalid precedence: must be 1..100");
                 precedence = (unsigned)numVal;
             }
+            getNextToken();
             break;
+        case tok_unary:
+            getNextToken();
+            if (!isascii(currToken))
+                return LogErrorP("Expected unary operator");
+            fnName = "unary";
+            fnName += (char)currToken;
+            kind = 2;
+            getNextToken();
+            break;
+
     }
-    getNextToken();
 
     if (currToken != '(')
         return LogErrorP("Expected '(' in prototype");
@@ -296,6 +306,7 @@ std::unique_ptr<PrototypeAST> Parser::ParsePrototype() {
         return LogErrorP("Expected ')' in prototype");
 
     getNextToken();
+
 
     return std::make_unique<PrototypeAST>(fnName, std::move(argNames), kind != 0, precedence);
 }

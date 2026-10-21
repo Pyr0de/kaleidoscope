@@ -18,6 +18,7 @@ enum Token {
     tok_in = -10,
 
     tok_binary = -11,
+    tok_unary = -12,
 };
 
 class Lexer {
