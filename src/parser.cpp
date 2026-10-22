@@ -110,11 +110,27 @@ int Parser::GetTokPrecedence() {
 ///   ::= primary binoprhs
 ///
 std::unique_ptr<ExprAST> Parser::ParseExpression() {
-  auto lhs = ParsePrimary();
+  auto lhs = ParseUnary();
   if (!lhs)
     return nullptr;
 
   return ParseBinOpRHS(0, std::move(lhs));
+}
+
+/// unary
+///   ::= primary
+///   ::= '!' unary
+std::unique_ptr<ExprAST> Parser::ParseUnary() {
+    // If the current token is not an operator, it must be a primary expr.
+    if (!isascii(currToken) || currToken == '(' || currToken == ',')
+        return ParsePrimary();
+
+    // If this is a unary operator, read it.
+    int Opc = currToken;
+    getNextToken();
+    if (auto Operand = ParseUnary())
+        return std::make_unique<UnaryExprAST>(Opc, std::move(Operand));
+    return nullptr;
 }
 
 /// binoprhs
@@ -136,7 +152,7 @@ std::unique_ptr<ExprAST> Parser::ParseBinOpRHS(
         getNextToken(); // eat binop
 
         // Parse the primary expression after the binary operator.
-        auto rhs = ParsePrimary();
+        auto rhs = ParseUnary();
         if (!rhs)
             return nullptr;
 

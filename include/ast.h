@@ -50,6 +50,16 @@ class VariableExprAST : public ExprAST {
     Value* codegen() override;
 };
 
+class UnaryExprAST : public ExprAST {
+    char op;
+    std::unique_ptr<ExprAST> operand;
+
+    public:
+    UnaryExprAST(char op, std::unique_ptr<ExprAST> operand)
+        : op(op), operand(std::move(operand)) {}
+    Value* codegen() override;
+};
+
 class BinaryExprAST : public ExprAST {
     char op;
     std::unique_ptr<ExprAST> lhs, rhs;
