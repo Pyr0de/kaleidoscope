@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <llvm/IR/Instructions.h>
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/IR/PassInstrumentation.h>
 #include <llvm/Target/TargetMachine.h>
@@ -13,6 +14,7 @@
 #include <llvm/Transforms/Scalar/GVN.h>
 #include <llvm/Transforms/Scalar/Reassociate.h>
 #include <llvm/Transforms/Scalar/SimplifyCFG.h>
+#include "llvm/Transforms/Utils/Mem2Reg.h"
 #include <memory>
 #include <string>
 #include "ast.h"
@@ -25,7 +27,7 @@ std::unique_ptr<LLVMContext> TheContext;
 std::unique_ptr<Module> TheModule;
 std::unique_ptr<IRBuilder<>> Builder;
 
-std::map<std::string, llvm::Value*> NamedValues;
+std::map<std::string, llvm::AllocaInst*> NamedValues;
 std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
 
 static std::unique_ptr<FunctionPassManager> FPM;
@@ -63,6 +65,12 @@ void InitializeModuleAndManagers() {
     FPM->addPass(GVNPass());
     // Simplify the control flow graph (deleting unreachable blocks, etc)->
     FPM->addPass(SimplifyCFGPass());
+    // Promote allocas to registers.
+    FPM->addPass(PromotePass());
+    // Do simple "peephole" optimizations and bit-twiddling optzns.
+    FPM->addPass(InstCombinePass());
+    // Reassociate expressions.
+    FPM->addPass(ReassociatePass());
 
     PassBuilder PB;
     PB.registerModuleAnalyses(*MAM);
@@ -79,11 +87,21 @@ Value* NumberExprAST::codegen() {
     return ConstantFP::get(*TheContext, APFloat(val));
 }
 
+static AllocaInst* CreateEntryBlockAlloca(
+        Function *TheFunction,
+        StringRef VarName
+        ) {
+    IRBuilder<> TmpB(&TheFunction->getEntryBlock(), TheFunction->getEntryBlock().begin());
+
+    return TmpB.CreateAlloca(Type::getDoubleTy(*TheContext), nullptr, VarName);
+}
+
 Value* VariableExprAST::codegen() {
-    Value *val = NamedValues[name];
-    if (!val)
+    AllocaInst *A = NamedValues[name];
+    if (!A)
         LogErrorV("Unknown variable name");
-    return val;
+
+    return Builder->CreateLoad(A->getAllocatedType(), A, name.c_str());
 }
 
 Value* UnaryExprAST::codegen() {
@@ -188,8 +206,13 @@ Function *FunctionAST::codegen() {
     Builder->SetInsertPoint(BB);
 
     NamedValues.clear();
-    for (auto &arg : function->args())
-        NamedValues[std::string(arg.getName())] = &arg;
+    for (auto &arg : function->args()) {
+        AllocaInst* alloca = CreateEntryBlockAlloca(function, arg.getName());
+
+        Builder->CreateStore(&arg, alloca);
+
+        NamedValues[std::string(arg.getName())] = alloca;
+    }
 
     if (Value *retVal = body->codegen()) {
         // Finish off the function.
@@ -264,6 +287,7 @@ Value* ForExprAST::codegen() {
         return nullptr;
 
     Function* function = Builder->GetInsertBlock()->getParent();
+    AllocaInst *alloca = CreateEntryBlockAlloca(function, VarName);
     BasicBlock* preHeaderBB = Builder->GetInsertBlock();
     BasicBlock* loopBB = BasicBlock::Create(*TheContext, "loop", function);
 
@@ -271,12 +295,10 @@ Value* ForExprAST::codegen() {
 
     Builder->SetInsertPoint(loopBB);
 
-    auto ph = Builder->CreatePHI(Type::getDoubleTy(*TheContext), 2, VarName);
-    ph->addIncoming(startVal, preHeaderBB);
-    // ph->addIncoming(nextVal, loopBB);
+    Builder->CreateStore(startVal, alloca);
 
-    Value *oldVal = NamedValues[VarName];
-    NamedValues[VarName] = ph;
+    AllocaInst *oldVal = NamedValues[VarName];
+    NamedValues[VarName] = alloca;
 
     if (!Body->codegen())
         return nullptr;
@@ -290,20 +312,20 @@ Value* ForExprAST::codegen() {
         stepVal = ConstantFP::get(*TheContext, APFloat(1.0));
     }
 
-    Value* nextVar = Builder->CreateFAdd(ph, stepVal, "nextVar");
+    Value* currVar = Builder->CreateLoad(alloca->getAllocatedType(), alloca, VarName.c_str());
+    Value* nextVar = Builder->CreateFAdd(currVar, stepVal, "nextVar");
+    Builder->CreateStore(nextVar, alloca);
 
     Value* endVal = End->codegen();
     if (!endVal)
         return nullptr;
-    
+
     endVal = Builder->CreateFCmpONE(endVal, ConstantFP::get(*TheContext, APFloat(0.0)), "loopcond");
 
     BasicBlock *loopEndBB = Builder->GetInsertBlock();
     BasicBlock *afterBB = BasicBlock::Create(*TheContext, "afterloop", function);
 
     Builder->CreateCondBr(endVal, loopBB, afterBB);
-
-    ph->addIncoming(nextVar, loopEndBB);
 
     Builder->SetInsertPoint(afterBB);
 

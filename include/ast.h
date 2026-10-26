@@ -1,6 +1,7 @@
 #pragma once
 
 #include "KaleidoscopeJIT.h"
+#include <llvm/IR/Instructions.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
@@ -19,7 +20,7 @@ extern std::unique_ptr<LLVMContext> TheContext;
 extern std::unique_ptr<Module> TheModule;
 extern std::unique_ptr<IRBuilder<>> Builder;
 
-extern std::map<std::string, llvm::Value*> NamedValues;
+extern std::map<std::string, llvm::AllocaInst*> NamedValues;
 extern std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
 
 extern std::unique_ptr<orc::KaleidoscopeJIT> JIT;
