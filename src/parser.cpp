@@ -2,8 +2,10 @@
 #include "ast.h"
 #include "lexer.h"
 #include <cstdio>
-#include <llvm-22/llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
+#include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <memory>
+#include <string>
+#include <vector>
 
 std::map<char, int> binOpPrecedence;
 
@@ -72,6 +74,9 @@ std::unique_ptr<ExprAST> Parser::ParseIdentifierExpr() {
 ///   ::= identifierexpr
 ///   ::= numberexpr
 ///   ::= parenexpr
+///   ::= ifexpr
+///   ::= forexpr
+///   ::= varexpr
 std::unique_ptr<ExprAST> Parser::ParsePrimary() {
     switch (currToken) {
         case tok_ident:
@@ -84,6 +89,8 @@ std::unique_ptr<ExprAST> Parser::ParsePrimary() {
             return ParseIfExpr();
         case tok_for:
             return ParseForExpr();
+        case tok_var:
+            return ParseVarExpr();
         default:
             return LogError("unknown token when expecting an expression");
     }
@@ -105,6 +112,45 @@ int Parser::GetTokPrecedence() {
     if (precedence <= 0) return -1;
 
     return precedence;
+}
+
+std::unique_ptr<ExprAST> Parser::ParseVarExpr() {
+    getNextToken();
+
+    std::vector<std::pair<std::string, std::unique_ptr<ExprAST>>> varNames;
+
+    if (currToken != tok_ident)
+        return LogError("expected identifier after var");
+
+    while (true) {
+        std::string name = lexer.identifier();
+        getNextToken();
+
+        std::unique_ptr<ExprAST> init;
+        if (currToken == '=') {
+            getNextToken();
+
+            init = ParseExpression();
+            if (!init) return nullptr;
+        }
+        varNames.push_back(std::make_pair(name, std::move(init)));
+
+        if (currToken != ',') break;
+        getNextToken();
+
+        if (currToken != tok_ident)
+            return LogError("expected identifier list after var");
+    }
+
+    if (currToken != tok_in)
+        return LogError("expected 'in' keyword after 'var'");
+    getNextToken();
+
+    auto body = ParseExpression();
+    if (!body)
+        return nullptr;
+
+    return std::make_unique<VarExprAST>(std::move(varNames), std::move(body));
 }
 
 /// expression

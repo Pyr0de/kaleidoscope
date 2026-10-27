@@ -17,6 +17,7 @@
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 #include <memory>
 #include <string>
+#include <vector>
 #include "ast.h"
 #include "KaleidoscopeJIT.h"
 #include "parser.h"
@@ -355,4 +356,42 @@ Value* ForExprAST::codegen() {
         NamedValues.erase(VarName);
 
     return Constant::getNullValue(Type::getDoubleTy(*TheContext));
+}
+
+Value* VarExprAST::codegen() {
+    std::vector<AllocaInst*> oldBindings;
+
+    Function* function = Builder->GetInsertBlock()->getParent();
+
+    for (unsigned i = 0, e = VarNames.size(); i != e; ++i) {
+        const std::string &varName = VarNames[i].first;
+        ExprAST* init = VarNames[i].second.get();
+
+        Value* initVal;
+        if (init) {
+            initVal = init->codegen();
+            if(!initVal) {
+                return nullptr;
+            }
+        } else {
+            initVal = ConstantFP::get(*TheContext, APFloat(0.0));
+        }
+
+        AllocaInst *alloca = CreateEntryBlockAlloca(function, varName);
+        Builder->CreateStore(initVal, alloca);
+
+        oldBindings.push_back(NamedValues[varName]);
+
+        NamedValues[varName] = alloca;
+    }
+
+    Value* bodyVal = Body->codegen();
+    if (!bodyVal) {
+        return nullptr;
+    }
+
+    for (unsigned i = 0, e = VarNames.size(); i != e; ++i)
+        NamedValues[VarNames[i].first] = oldBindings[i];
+
+    return bodyVal;
 }

@@ -26,6 +26,8 @@ class Parser {
 
     int GetTokPrecedence();
 
+    std::unique_ptr<ExprAST> ParseVarExpr();
+
     std::unique_ptr<ExprAST> ParseExpression();
     std::unique_ptr<ExprAST> ParseUnary();
     std::unique_ptr<ExprAST> ParseBinOpRHS(int, std::unique_ptr<ExprAST>);

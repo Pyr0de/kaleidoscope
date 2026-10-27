@@ -27,6 +27,8 @@ int Lexer::getToken() {
             return tok_binary;
         if (IdentifierStr == "unary")
             return tok_unary;
+        if (IdentifierStr == "var")
+            return tok_var;
         return tok_ident;
     }
 
