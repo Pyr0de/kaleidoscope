@@ -90,6 +90,7 @@ std::unique_ptr<ExprAST> Parser::ParsePrimary() {
 }
 
 Parser::Parser() {
+    binOpPrecedence['='] = 2;
     binOpPrecedence['<'] = 10;
     binOpPrecedence['+'] = 20;
     binOpPrecedence['-'] = 20;

@@ -117,6 +117,23 @@ Value* UnaryExprAST::codegen() {
 }
 
 Value* BinaryExprAST::codegen() {
+    if (op == '=') {
+        VariableExprAST* lhsExpr = static_cast<VariableExprAST*>(lhs.get());
+        if (!lhsExpr)
+            return LogErrorV("destination of '=' must be a variable");
+
+        Value *Val = rhs->codegen();
+        if (!Val)
+            return nullptr;
+
+        AllocaInst *Alloca = NamedValues[lhsExpr->name];
+        if (!Alloca)
+            return LogErrorV("Unknown variable name");
+
+        Builder->CreateStore(Val, Alloca);
+        return Val;
+    }
+
     Value *l = lhs->codegen();
     Value *r = rhs->codegen();
     if (!l || !r)

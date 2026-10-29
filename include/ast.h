@@ -44,9 +44,8 @@ class NumberExprAST : public ExprAST {
 };
 
 class VariableExprAST : public ExprAST {
-    std::string name;
-
     public:
+    std::string name;
     VariableExprAST(const std::string &name) : name(name) {}
     Value* codegen() override;
 };
