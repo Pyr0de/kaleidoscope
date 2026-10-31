@@ -298,24 +298,36 @@ Value* IfExprAST::codegen() {
 }
 
 Value* ForExprAST::codegen() {
+    Function* function = Builder->GetInsertBlock()->getParent();
+    AllocaInst *alloca = CreateEntryBlockAlloca(function, VarName);
+
     Value* startVal = Start->codegen();
 
     if (!startVal)
         return nullptr;
 
-    Function* function = Builder->GetInsertBlock()->getParent();
-    AllocaInst *alloca = CreateEntryBlockAlloca(function, VarName);
-    BasicBlock* preHeaderBB = Builder->GetInsertBlock();
+    Builder->CreateStore(startVal, alloca);
+
     BasicBlock* loopBB = BasicBlock::Create(*TheContext, "loop", function);
+    BasicBlock* bodyBB = BasicBlock::Create(*TheContext, "loopbody", function);
+    BasicBlock *afterBB = BasicBlock::Create(*TheContext, "afterloop", function);
 
     Builder->CreateBr(loopBB);
 
     Builder->SetInsertPoint(loopBB);
 
-    Builder->CreateStore(startVal, alloca);
-
     AllocaInst *oldVal = NamedValues[VarName];
     NamedValues[VarName] = alloca;
+
+    Value* endVal = End->codegen();
+    if (!endVal)
+        return nullptr;
+
+    endVal = Builder->CreateFCmpONE(endVal, ConstantFP::get(*TheContext, APFloat(0.0)), "loopcond");
+
+    Builder->CreateCondBr(endVal, bodyBB, afterBB);
+
+    Builder->SetInsertPoint(bodyBB);
 
     if (!Body->codegen())
         return nullptr;
@@ -333,16 +345,7 @@ Value* ForExprAST::codegen() {
     Value* nextVar = Builder->CreateFAdd(currVar, stepVal, "nextVar");
     Builder->CreateStore(nextVar, alloca);
 
-    Value* endVal = End->codegen();
-    if (!endVal)
-        return nullptr;
-
-    endVal = Builder->CreateFCmpONE(endVal, ConstantFP::get(*TheContext, APFloat(0.0)), "loopcond");
-
-    BasicBlock *loopEndBB = Builder->GetInsertBlock();
-    BasicBlock *afterBB = BasicBlock::Create(*TheContext, "afterloop", function);
-
-    Builder->CreateCondBr(endVal, loopBB, afterBB);
+    Builder->CreateBr(loopBB);
 
     Builder->SetInsertPoint(afterBB);
 
