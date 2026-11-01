@@ -1,6 +1,7 @@
 #pragma once
 
-#include "KaleidoscopeJIT.h"
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/TargetParser/Triple.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>
@@ -23,9 +24,9 @@ extern std::unique_ptr<IRBuilder<>> Builder;
 extern std::map<std::string, llvm::AllocaInst*> NamedValues;
 extern std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
 
-extern std::unique_ptr<orc::KaleidoscopeJIT> JIT;
+// extern std::unique_ptr<orc::KaleidoscopeJIT> JIT;
 
-void InitializeModuleAndManagers();
+void InitializeModuleAndManagers(TargetMachine* targetMachine, llvm::Triple triple);
 
 Function* getFunction(std::string name);
 

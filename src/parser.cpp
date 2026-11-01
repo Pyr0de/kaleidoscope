@@ -390,11 +390,11 @@ void Parser::HandleDefinition() {
             fprintf(stderr, "Read function definition:\n");
             FnIR->print(errs());
             fprintf(stderr, "\n");
-            ExitOnErr(JIT->addModule(orc::ThreadSafeModule(
-                            std::move(TheModule),
-                            std::move(TheContext)
-                            )));
-            InitializeModuleAndManagers();
+            // ExitOnErr(JIT->addModule(orc::ThreadSafeModule(
+            //                 std::move(TheModule),
+            //                 std::move(TheContext)
+            //                 )));
+            // InitializeModuleAndManagers();
         }
     } else {
         // Skip token for error recovery.
@@ -418,28 +418,7 @@ void Parser::HandleExtern() {
 
 void Parser::HandleTopLevelExpression() {
     if (auto FnAST = ParseTopLevelExpr()) {
-        if (auto *FnIR = FnAST->codegen()) {
-            // FnIR->print(errs());
-            auto RT = JIT->getMainJITDylib().createResourceTracker();
-
-            auto TSM = orc::ThreadSafeModule(std::move(TheModule), std::move(TheContext));
-            ExitOnErr(JIT->addModule(std::move(TSM), RT));
-            InitializeModuleAndManagers();
-
-            auto ExprSymbol = ExitOnErr(JIT->lookup("__anon_expr"));
-
-            double (*FP)() = ExprSymbol.toPtr<double (*)()>();
-            fprintf(stderr, "Evaluated to %f\n", FP());
-
-            // fprintf(stderr, "Read top-level expression:\n");
-            // FnIR->print(errs());
-            // fprintf(stderr, "\n");
-
-            // // Remove the anonymous expression.
-            // FnIR->eraseFromParent();
-
-            ExitOnErr(RT->remove());
-        }
+        FnAST->codegen();
     } else {
         // Skip token for error recovery.
         getNextToken();

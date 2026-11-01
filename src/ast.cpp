@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <llvm/TargetParser/Triple.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/IR/PassInstrumentation.h>
@@ -19,7 +20,6 @@
 #include <string>
 #include <vector>
 #include "ast.h"
-#include "KaleidoscopeJIT.h"
 #include "parser.h"
 
 using namespace llvm;
@@ -31,52 +31,53 @@ std::unique_ptr<IRBuilder<>> Builder;
 std::map<std::string, llvm::AllocaInst*> NamedValues;
 std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
 
-static std::unique_ptr<FunctionPassManager> FPM;
-static std::unique_ptr<LoopAnalysisManager> LAM;
-static std::unique_ptr<FunctionAnalysisManager> FAM;
-static std::unique_ptr<CGSCCAnalysisManager> CGAM;
-static std::unique_ptr<ModuleAnalysisManager> MAM;
-static std::unique_ptr<PassInstrumentationCallbacks> PIC;
-static std::unique_ptr<StandardInstrumentations> SI;
+// static std::unique_ptr<FunctionPassManager> FPM;
+// static std::unique_ptr<LoopAnalysisManager> LAM;
+// static std::unique_ptr<FunctionAnalysisManager> FAM;
+// static std::unique_ptr<CGSCCAnalysisManager> CGAM;
+// static std::unique_ptr<ModuleAnalysisManager> MAM;
+// static std::unique_ptr<PassInstrumentationCallbacks> PIC;
+// static std::unique_ptr<StandardInstrumentations> SI;
 
-std::unique_ptr<orc::KaleidoscopeJIT> JIT;
+// std::unique_ptr<orc::KaleidoscopeJIT> JIT;
 
-void InitializeModuleAndManagers() {
+void InitializeModuleAndManagers(TargetMachine* targetMachine, llvm::Triple triple) {
     TheContext = std::make_unique<LLVMContext>();
     TheModule = std::make_unique<Module>("my cool jit", *TheContext);
-    TheModule->setDataLayout(JIT->getDataLayout());
+    TheModule->setDataLayout(targetMachine->getTargetTriple().computeDataLayout());
+    TheModule->setTargetTriple(triple);
 
     Builder = std::make_unique<IRBuilder<>>(*TheContext);
 
-    FPM = std::make_unique<FunctionPassManager>();
-    LAM = std::make_unique<LoopAnalysisManager>();
-    FAM = std::make_unique<FunctionAnalysisManager>();
-    CGAM = std::make_unique<CGSCCAnalysisManager>();
-    MAM = std::make_unique<ModuleAnalysisManager>();
-    PIC = std::make_unique<PassInstrumentationCallbacks>();
-    SI = std::make_unique<StandardInstrumentations>(*TheContext, true);
-    SI->registerCallbacks(*PIC, MAM.get());
+    // FPM = std::make_unique<FunctionPassManager>();
+    // LAM = std::make_unique<LoopAnalysisManager>();
+    // FAM = std::make_unique<FunctionAnalysisManager>();
+    // CGAM = std::make_unique<CGSCCAnalysisManager>();
+    // MAM = std::make_unique<ModuleAnalysisManager>();
+    // PIC = std::make_unique<PassInstrumentationCallbacks>();
+    // SI = std::make_unique<StandardInstrumentations>(*TheContext, true);
+    // SI->registerCallbacks(*PIC, MAM.get());
 
-    // Add transform passes.
-    // Do simple "peephole" optimizations and bit-twiddling optzns.
-    FPM->addPass(InstCombinePass());
-    // Reassociate expressions.
-    FPM->addPass(ReassociatePass());
-    // Eliminate Common SubExpressions.
-    FPM->addPass(GVNPass());
-    // Simplify the control flow graph (deleting unreachable blocks, etc)->
-    FPM->addPass(SimplifyCFGPass());
-    // Promote allocas to registers.
-    FPM->addPass(PromotePass());
-    // Do simple "peephole" optimizations and bit-twiddling optzns.
-    FPM->addPass(InstCombinePass());
-    // Reassociate expressions.
-    FPM->addPass(ReassociatePass());
+    // // Add transform passes.
+    // // Do simple "peephole" optimizations and bit-twiddling optzns.
+    // FPM->addPass(InstCombinePass());
+    // // Reassociate expressions.
+    // FPM->addPass(ReassociatePass());
+    // // Eliminate Common SubExpressions.
+    // FPM->addPass(GVNPass());
+    // // Simplify the control flow graph (deleting unreachable blocks, etc)->
+    // FPM->addPass(SimplifyCFGPass());
+    // // Promote allocas to registers.
+    // FPM->addPass(PromotePass());
+    // // Do simple "peephole" optimizations and bit-twiddling optzns.
+    // FPM->addPass(InstCombinePass());
+    // // Reassociate expressions.
+    // FPM->addPass(ReassociatePass());
 
-    PassBuilder PB;
-    PB.registerModuleAnalyses(*MAM);
-    PB.registerFunctionAnalyses(*FAM);
-    PB.crossRegisterProxies(*LAM, *FAM, *CGAM, *MAM);
+    // PassBuilder PB;
+    // PB.registerModuleAnalyses(*MAM);
+    // PB.registerFunctionAnalyses(*FAM);
+    // PB.crossRegisterProxies(*LAM, *FAM, *CGAM, *MAM);
 }
 
 Value *LogErrorV(const char *Str) {
@@ -239,7 +240,7 @@ Function *FunctionAST::codegen() {
         // Validate the generated code, checking for consistency.
         verifyFunction(*function);
 
-        FPM->run(*function, *FAM);
+        // FPM->run(*function, *FAM);
 
         return function;
     }

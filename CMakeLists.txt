@@ -14,14 +14,15 @@ message(STATUS "LLVM_DIR: ${LLVM_DIR}")
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
-llvm_map_components_to_libnames(LLVM_LIBS
-    core
-    orcjit
-    native
-    RuntimeDyld
-)
-
 add_executable(${PROJECT_NAME} ${SOURCES})
+
+if(TARGET LLVM)
+    target_link_libraries(${PROJECT_NAME} PRIVATE LLVM)     # libLLVM-22.so
+else()
+    llvm_map_components_to_libnames(LLVM_LIBS core orcjit native support)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${LLVM_LIBS})
+endif()
+
 target_include_directories(${PROJECT_NAME} PRIVATE include)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${LLVM_LIBS})
 
