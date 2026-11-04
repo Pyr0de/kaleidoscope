@@ -8,6 +8,7 @@
 #include <string>
 #include "parser.h"
 #include "ast.h"
+// #include "debug.h"
 
 int mainLoop() {
     Parser parser;
@@ -59,6 +60,8 @@ int main() {
     InitializeModuleAndManagers(TargetMachine, triple);
 
     mainLoop();
+
+    // DBuilder->finalize();
 
     auto Filename = "output.o";
     std::error_code EC;

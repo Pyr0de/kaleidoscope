@@ -21,6 +21,7 @@
 #include <vector>
 #include "ast.h"
 #include "parser.h"
+#include "debug.h"
 
 using namespace llvm;
 
@@ -48,6 +49,8 @@ void InitializeModuleAndManagers(TargetMachine* targetMachine, llvm::Triple trip
     TheModule->setTargetTriple(triple);
 
     Builder = std::make_unique<IRBuilder<>>(*TheContext);
+
+    InitializeDebug();
 
     // FPM = std::make_unique<FunctionPassManager>();
     // LAM = std::make_unique<LoopAnalysisManager>();
@@ -86,6 +89,7 @@ Value *LogErrorV(const char *Str) {
 }
 
 Value* NumberExprAST::codegen() {
+    KSDbgInfo.emitLocation(this);
     return ConstantFP::get(*TheContext, APFloat(val));
 }
 
@@ -99,6 +103,8 @@ static AllocaInst* CreateEntryBlockAlloca(
 }
 
 Value* VariableExprAST::codegen() {
+    KSDbgInfo.emitLocation(this);
+
     AllocaInst *A = NamedValues[name];
     if (!A)
         LogErrorV("Unknown variable name");
@@ -107,6 +113,8 @@ Value* VariableExprAST::codegen() {
 }
 
 Value* UnaryExprAST::codegen() {
+    KSDbgInfo.emitLocation(this);
+
     Value *OperandV = operand->codegen();
     if (!OperandV)
         return nullptr;
@@ -119,6 +127,8 @@ Value* UnaryExprAST::codegen() {
 }
 
 Value* BinaryExprAST::codegen() {
+    KSDbgInfo.emitLocation(this);
+
     if (op == '=') {
         VariableExprAST* lhsExpr = static_cast<VariableExprAST*>(lhs.get());
         if (!lhsExpr)
@@ -177,6 +187,8 @@ Function* getFunction(std::string name) {
 }
 
 Value* CallExprAST::codegen() {
+    KSDbgInfo.emitLocation(this);
+
     // Look up the name in the global module table.
     Function *calleeF = getFunction(callee);
     if (!calleeF)
@@ -224,14 +236,52 @@ Function *FunctionAST::codegen() {
     BasicBlock *BB = BasicBlock::Create(*TheContext, "entry", function);
     Builder->SetInsertPoint(BB);
 
+    DIFile *Unit = DBuilder->createFile(KSDbgInfo.TheCU->getFilename(), KSDbgInfo.TheCU->getDirectory());
+
+    DIScope *FContext = Unit;
+    unsigned LineNo = 0;
+    unsigned ScopeLine = 0;
+    DISubprogram *SP = DBuilder->createFunction(
+            FContext, P.getName(), StringRef(), Unit, LineNo,
+            CreateFunctionType(function->arg_size()),
+            ScopeLine,
+            DINode::FlagPrototyped,
+            DISubprogram::SPFlagDefinition);
+    function->setSubprogram(SP);
+
+    KSDbgInfo.LexicalBlocks.push_back(SP);
+
+    KSDbgInfo.emitLocation(nullptr);
+
     NamedValues.clear();
+    unsigned argIdx = 0;
     for (auto &arg : function->args()) {
         AllocaInst* alloca = CreateEntryBlockAlloca(function, arg.getName());
+
+        DILocalVariable *D = DBuilder->createParameterVariable(
+                SP,
+                arg.getName(),
+                ++argIdx,
+                Unit,
+                LineNo,
+                KSDbgInfo.getDoubleTy(),
+                true
+                );
+
+        DBuilder->insertDeclare(
+                alloca,
+                D,
+                DBuilder->createExpression(),
+                DILocation::get(SP->getContext(), LineNo, 0, SP),
+                Builder->GetInsertBlock()
+                );
 
         Builder->CreateStore(&arg, alloca);
 
         NamedValues[std::string(arg.getName())] = alloca;
     }
+
+    KSDbgInfo.emitLocation(body.get());
 
     if (Value *retVal = body->codegen()) {
         // Finish off the function.
@@ -241,6 +291,7 @@ Function *FunctionAST::codegen() {
         verifyFunction(*function);
 
         // FPM->run(*function, *FAM);
+        KSDbgInfo.LexicalBlocks.pop_back();
 
         return function;
     }
@@ -250,10 +301,14 @@ Function *FunctionAST::codegen() {
     if (P.isBinaryOp())
         binOpPrecedence.erase(proto->getOperatorName());
 
+    KSDbgInfo.LexicalBlocks.pop_back();
+
     return nullptr;
 }
 
 Value* IfExprAST::codegen() {
+    KSDbgInfo.emitLocation(this);
+
     Value *cond = Cond->codegen();
     if (!cond)
         return nullptr;
@@ -304,6 +359,8 @@ Value* IfExprAST::codegen() {
 }
 
 Value* ForExprAST::codegen() {
+    KSDbgInfo.emitLocation(this);
+
     Function* function = Builder->GetInsertBlock()->getParent();
     AllocaInst *alloca = CreateEntryBlockAlloca(function, VarName);
 
@@ -364,6 +421,8 @@ Value* ForExprAST::codegen() {
 }
 
 Value* VarExprAST::codegen() {
+    KSDbgInfo.emitLocation(this);
+
     std::vector<AllocaInst*> oldBindings;
 
     Function* function = Builder->GetInsertBlock()->getParent();

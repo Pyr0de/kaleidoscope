@@ -1,5 +1,6 @@
 #pragma once
 
+#include "lexer.h"
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/TargetParser/Triple.h>
 #include <llvm/IR/Instructions.h>
@@ -31,9 +32,16 @@ void InitializeModuleAndManagers(TargetMachine* targetMachine, llvm::Triple trip
 Function* getFunction(std::string name);
 
 class ExprAST {
+    SourceLocation loc;
     public:
+        ExprAST(SourceLocation loc = CurLoc) : loc(loc) {}
         virtual ~ExprAST() = default;
         virtual Value* codegen() = 0;
+        int getLine() const { return loc.Line; }
+        int getCol() const { return loc.Col; }
+        virtual raw_ostream &dump(raw_ostream &out, int ind) {
+            return out << ':' << getLine() << ':' << getCol() << '\n';
+        }
 };
 
 class NumberExprAST : public ExprAST {

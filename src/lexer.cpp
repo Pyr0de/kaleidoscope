@@ -1,12 +1,29 @@
 #include "lexer.h"
 #include <cstdio>
 
+SourceLocation CurLoc;
+SourceLocation LexLoc = {1, 0};
+
+static int advance() {
+    int lastChar = getchar();
+
+    if (lastChar == '\n' || lastChar == '\r') {
+        LexLoc.Line++;
+        LexLoc.Col = 0;
+    } else
+        LexLoc.Col++;
+    return lastChar;
+}
+
 int Lexer::getToken() {
     while (isspace(LastChar))
-        LastChar = getchar();
+        LastChar = advance();
+
+    CurLoc = LexLoc;
+
     if (isalpha(LastChar)) {
         IdentifierStr = LastChar;
-        while (isalnum((LastChar = getchar())))
+        while (isalnum((LastChar = advance())))
             IdentifierStr += LastChar;
 
         if (IdentifierStr == "def")
@@ -36,7 +53,7 @@ int Lexer::getToken() {
         std::string NumStr;
         do {
             NumStr += LastChar;
-            LastChar = getchar();
+            LastChar = advance();
         } while (isdigit(LastChar) || LastChar == '.');
 
         NumVal = strtod(NumStr.c_str(), 0);
@@ -46,7 +63,7 @@ int Lexer::getToken() {
     if (LastChar == '#') {
         // Comment until end of line.
         do
-            LastChar = getchar();
+            LastChar = advance();
         while (LastChar != EOF && LastChar != '\n' && LastChar != '\r');
 
         if (LastChar != EOF)
@@ -57,6 +74,6 @@ int Lexer::getToken() {
 
     // Otherwise, just return the character as its ascii value.
     int ThisChar = LastChar;
-    LastChar = getchar();
+    LastChar = advance();
     return ThisChar;
 }

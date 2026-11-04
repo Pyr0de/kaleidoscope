@@ -1,6 +1,14 @@
 #pragma once
 #include <string>
 
+struct SourceLocation {
+    int Line;
+    int Col;
+};
+
+extern SourceLocation CurLoc;
+extern SourceLocation LexLoc;
+
 enum Token {
     tok_eof = -1,
 
