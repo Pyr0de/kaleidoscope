@@ -246,6 +246,10 @@ Function *FunctionAST::codegen() {
     }
     // Error reading body, remove function.
     function->eraseFromParent();
+
+    if (P.isBinaryOp())
+        binOpPrecedence.erase(proto->getOperatorName());
+
     return nullptr;
 }
 
