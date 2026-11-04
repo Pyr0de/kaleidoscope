@@ -378,7 +378,7 @@ std::unique_ptr<PrototypeAST> Parser::ParseExtern() {
 /// toplevelexpr ::= expression
 std::unique_ptr<FunctionAST> Parser::ParseTopLevelExpr() {
     if (auto expr = ParseExpression()) {
-        auto proto = std::make_unique<PrototypeAST>("__anon_expr", std::vector<std::string>());
+        auto proto = std::make_unique<PrototypeAST>("main", std::vector<std::string>());
         return std::make_unique<FunctionAST>(std::move(proto), std::move(expr));
     }
     return nullptr;
@@ -418,7 +418,9 @@ void Parser::HandleExtern() {
 
 void Parser::HandleTopLevelExpression() {
     if (auto FnAST = ParseTopLevelExpr()) {
-        FnAST->codegen();
+        if (!FnAST->codegen()) {
+            fprintf(stderr, "Error generating code for top level expr");
+        }
     } else {
         // Skip token for error recovery.
         getNextToken();

@@ -13,7 +13,6 @@ int mainLoop() {
     Parser parser;
 
     while (true) {
-        fprintf(stderr, "ready > ");
         parser.getNextToken();
         switch (parser.currToken) {
             case tok_eof:
